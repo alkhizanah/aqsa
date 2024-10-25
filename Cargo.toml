@@ -1,0 +1,11 @@
+[package]
+name = "alaqsa"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.90"
+async-trait = "0.1.83"
+colored = "2.1.0"
+libloading = "0.8.5"
+rustyline = "14.0.0"
