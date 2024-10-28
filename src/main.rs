@@ -38,7 +38,7 @@ enum Command {
 
 fn main() -> Result<()> {
     print!("{}", BANNER.green().bold());
-    println!("  {}\n\n", "CyberSecurity toolkit".blue().underline());
+    println!("  🔻 {}\n\n", "CyberSecurity toolkit".blue().underline());
     
     let mut rl = DefaultEditor::new()?;
 
@@ -49,12 +49,12 @@ fn main() -> Result<()> {
         File::create(Path::new(&history_file_name))?;
     }
 
-    let command_prompt = format!("{} {}{}{}{} ",
-        "🔻".bold(),
-        std::env::var("USER")?.green().bold(),
+    let command_prompt = format!("{}{}{}{}{} ",
+        std::env::var("USER")?.blue().bold(),
         "(".purple().bold(),
         "Al-Aqsa".red().bold().underline(),
         ")".purple().bold(),
+        ">".blue().bold()
     );
     let command_prompt = command_prompt.as_str();
 
@@ -79,9 +79,15 @@ fn main() -> Result<()> {
             Ok(Command::LoadModule(module_path)) => unsafe {
                 let module_path = module_path.replace("~", &std::env::var("HOME")?);
 
-                module_library = Library::new(module_path.clone())?;
-                module = Some(module_library.get::<fn () -> Box<dyn Module>>(b"get_plugin")?());
-                println!("{} {} {}", "*".red().bold(), "loaded module".bold(), module_path.clone().green().bold());
+                match Library::new(module_path.clone()) {
+                    Ok(lib) => {
+                        module_library = lib;
+                        module = Some(module_library.get::<fn () -> Box<dyn Module>>(b"get_plugin")?());
+                        println!("{} {} {}", "*".red().bold(), "loaded module".bold(), module_path.clone().green().bold());
+                    },
+
+                    Err(e) => { println!("Error: {e}"); },
+                };
             },
 
             Ok(Command::Set(key, val)) => if_module_loaded(&mut module, |m| { m.set(key.clone(), val.clone()) }),
