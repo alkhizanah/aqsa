@@ -5,10 +5,6 @@ use anyhow::{ Result, anyhow };
 use rustyline::DefaultEditor;
 use colored::Colorize;
 
-/// .TODO:
-/// |_.- module metadata                             [0]
-/// |_.- additional design for multi-module attacks  [0]
-
 const BANNER: &'static str = r#"
     ___    __      ___                           ______                                             __  
    /   |  / /     /   | ____ __________ _       / ____/________ _____ ___  ___ _      ______  _____/ /__
@@ -70,13 +66,13 @@ fn main() -> Result<()> {
             Err(_) => { rl.save_history(&history_file_name)?; break }
         }
 
-        if input == "" { continue; }
+        if input.is_empty() { continue; }
         else { rl.add_history_entry(input.clone())?; }
 
         match parse_command(input.clone()) {
-            Ok(Command::Quit) => { should_run = false },
-
+            Ok(Command::Quit) => { should_run = false; },
             Ok(Command::LoadModule(module_path)) => unsafe {
+                if module_path.is_empty() { continue; }
                 let module_path = module_path.replace("~", &std::env::var("HOME")?);
 
                 match Library::new(module_path.clone()) {
@@ -85,14 +81,11 @@ fn main() -> Result<()> {
                         module = Some(module_library.get::<fn () -> Box<dyn Module>>(b"get_plugin")?());
                         println!("{} {} {}", "*".red().bold(), "loaded module".bold(), module_path.clone().green().bold());
                     },
-
                     Err(e) => { println!("Error: {e}"); },
                 };
             },
-
-            Ok(Command::Set(key, val)) => if_module_loaded(&mut module, |m| { m.set(key.clone(), val.clone()) }),
-
-            Ok(Command::ShowOptions) => if_module_loaded(&mut module, |m| {
+            Ok(Command::Set(key, val)) => module.as_deref_mut().map(|m| m.set(key.clone(), val.clone())).expect("MODULE_SET_FAILURE"),
+            Ok(Command::ShowOptions) => module.as_deref_mut().map(|m| {
                 println!("Options:");
                 m.options().into_iter().for_each(|(key, desc, opt)| {
                     println!("   {} {:<12}=>  {:<12}  |  {}",
@@ -100,34 +93,16 @@ fn main() -> Result<()> {
                         key.bold().green(), m.get(key.clone()).bold(), desc.bold().blue()
                     );
                 });
-            }),
-
-            Ok(Command::HelpModule) => if_module_loaded(&mut module, |m| { println!("Module info:\n{}", m.help().italic()); }),
-
-            Ok(Command::RunModule) => if_module_loaded(&mut module, |m| {
-                if let Err(e) = m.run() {
-                    println!("Error: {e}");
-                }
-            }),
-            
-            Err(e) => println!("Error: {e}")
-        }
+            }).expect("MODULE_OPTIONS_FAILURE"),
+            Ok(Command::HelpModule) => module.as_deref_mut().map(|m| { println!("Module info:\n{}", m.help().italic()); }).expect("MODULE_HELP_FAILURE"),
+            Ok(Command::RunModule) => module.as_deref_mut().map(|m| if let Err(e) = m.run() { println!("Error: {e}"); }).expect("MODULE_RUN_FAILURE"),
+            Err(e) => { println!("Error: {e}"); }
+        };
     }
 
     rl.save_history(&history_file_name)?;
 
     Ok(())
-}
-
-fn if_module_loaded(
-    module: &mut Option<Box<dyn Module>>,
-    action: impl Fn (&mut Box<dyn Module>)
-) {
-    if let Some(ref mut m) = module {
-        action(m);
-    } else {
-        println!("no modules loaded.");
-    }
 }
 
 fn parse_command(command: String) -> Result<Command> {
